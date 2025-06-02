@@ -1,0 +1,100 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Search Results</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .result-card { border: 1px solid #ccc; padding: 15px; margin-bottom: 10px; border-radius: 5px; }
+        .loading { color: #007bff; font-weight: bold; }
+        .error { color: red; }
+        .screenshot { max-width: 300px; margin-top: 10px; }
+        .html-preview { background-color: #f8f8f8; padding: 10px; margin-top: 10px; font-family: monospace; white-space: pre-wrap; border-left: 3px solid #ccc; }
+        .export-buttons { margin-top: 20px; }
+        button { margin-right: 10px; padding: 10px; font-size: 14px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h2>Results for: {{ search_query }} ({{ search_type }})</h2>
+    <div class="export-buttons">
+        <button onclick="exportResults('json')">Export as JSON</button>
+        <button onclick="exportResults('csv')">Export as CSV</button>
+    </div>
+    <div id="results" class="loading">Searching platforms...</div>
+
+    <script>
+        const searchQuery = "{{ search_query }}";
+        const searchType = "{{ search_type }}";
+        const platforms = {{ platforms | tojson }};
+        let fetchedResults = [];
+
+        async function fetchResults() {
+            const response = await fetch("/api/execute_search", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    search_query: searchQuery,
+                    search_type: searchType,
+                    platforms: platforms
+                })
+            });
+
+            const data = await response.json();
+            const resultsDiv = document.getElementById("results");
+            resultsDiv.innerHTML = "";
+
+            if (data.results && data.results.length > 0) {
+                fetchedResults = data.results;
+                data.results.forEach(result => {
+                    const card = document.createElement("div");
+                    card.classList.add("result-card");
+
+                    if (result.status === "error") {
+                        card.innerHTML = `<strong>${result.platform}</strong>: <span class="error">Error - ${result.error}</span>`;
+                    } else {
+                        const resultsList = result.results.map(item => `<li>${item}</li>`).join("");
+                        card.innerHTML = `
+                            <strong>${result.platform}</strong>:
+                            <ul>${resultsList}</ul>
+                            <div class="html-preview"><strong>HTML:</strong><br>${result.html || "No HTML"}</div>
+                            ${result.screenshot ? `<img src="${result.screenshot}" class="screenshot" alt="Screenshot of ${result.platform}">` : ""}
+                        `;
+                    }
+
+                    resultsDiv.appendChild(card);
+                });
+            } else {
+                resultsDiv.innerHTML = "No results found.";
+            }
+        }
+
+        async function exportResults(type) {
+            const response = await fetch("/api/export", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    results: fetchedResults,
+                    filetype: type,
+                    filename: `export_${searchQuery}_${Date.now()}`
+                })
+            });
+
+            if (response.ok) {
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = `export.${type}`;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+            } else {
+                alert("Failed to export. Please try again.");
+            }
+        }
+
+        fetchResults();
+    </script>
+</body>
+</html>

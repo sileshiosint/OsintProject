@@ -1,0 +1,58 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Search History</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <style>
+        body { font-family: sans-serif; padding: 2em; background: #f9f9f9; }
+        table { width: 100%; border-collapse: collapse; background: #fff; }
+        th, td { padding: 10px; border-bottom: 1px solid #ccc; text-align: left; }
+        th { background: #eee; }
+        tr:hover { background: #f0f0f0; }
+        .actions button { margin-right: 5px; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Search History</h1>
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Query</th>
+                <th>Type</th>
+                <th>Platform</th>
+                <th>Result Count</th>
+                <th>Timestamp</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for entry in history_data %}
+            <tr>
+                <td>{{ entry.id }}</td>
+                <td>{{ entry.query }}</td>
+                <td>{{ entry.search_type }}</td>
+                <td>{{ entry.platform }}</td>
+                <td>{{ entry.results | length }}</td>
+                <td>{{ entry.timestamp }}</td>
+                <td class="actions">
+                    <form method="post" action="/api/execute_search" style="display:inline;">
+                        <input type="hidden" name="search_query" value="{{ entry.query }}">
+                        <input type="hidden" name="search_type" value="{{ entry.search_type }}">
+                        <input type="hidden" name="platforms" value="{{ entry.platform }}">
+                        <button type="submit">🔁 Rerun</button>
+                    </form>
+                    <form method="post" action="/api/export/json" style="display:inline;">
+                        <input type="hidden" name="platform" value="{{ entry.platform }}">
+                        <input type="hidden" name="results" value="{{ entry.results | tojson }}">
+                        <button type="submit">⬇️ Export</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</body>
+</html>

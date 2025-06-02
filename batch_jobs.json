@@ -1,0 +1,17 @@
+[
+  {
+    "platform": "twitter",
+    "query": "Tigray conflict",
+    "delay": 3
+  },
+  {
+    "platform": "facebook",
+    "query": "Sudan protests",
+    "delay": 4
+  },
+  {
+    "platform": "instagram",
+    "query": "Ethiopia unrest",
+    "delay": 2
+  }
+]

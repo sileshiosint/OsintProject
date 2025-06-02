@@ -1,0 +1,285 @@
+{% extends "base.html" %}
+
+{% block title %}Search - Social Media OSINT Tool{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <!-- Header -->
+        <div class="text-center mb-5">
+            <h1 class="display-4 mb-3">
+                <i class="fas fa-binoculars text-info me-3"></i>
+                Social Media OSINT Tool
+            </h1>
+            <p class="lead text-muted">
+                Search usernames and keywords across multiple social media platforms
+            </p>
+        </div>
+
+        <!-- Search Forms -->
+        <div class="card shadow">
+            <div class="card-body">
+                <!-- Tab Navigation -->
+                <ul class="nav nav-tabs mb-4" id="searchTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="username-tab" data-bs-toggle="tab" 
+                                data-bs-target="#username-search" type="button" role="tab">
+                            <i class="fas fa-user me-2"></i>Username Search
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="keyword-tab" data-bs-toggle="tab" 
+                                data-bs-target="#keyword-search" type="button" role="tab">
+                            <i class="fas fa-hashtag me-2"></i>Keyword Search
+                        </button>
+                    </li>
+                </ul>
+
+                <!-- Tab Content -->
+                <div class="tab-content" id="searchTabContent">
+                    <!-- Username Search -->
+                    <div class="tab-pane fade show active" id="username-search" role="tabpanel">
+                        <form method="POST" action="{{ url_for('search') }}" id="usernameForm">
+                            <input type="hidden" name="search_type" value="username">
+                            
+                            <div class="mb-4">
+                                <label for="username" class="form-label fw-bold">Username</label>
+                                <div class="input-group">
+                                    <span class="input-group-text">
+                                        <i class="fas fa-at"></i>
+                                    </span>
+                                    <input type="text" class="form-control form-control-lg" 
+                                           id="username" name="query" 
+                                           placeholder="e.g., elonmusk" required>
+                                </div>
+                                <div class="form-text">
+                                    Enter a username to search across multiple platforms
+                                </div>
+                            </div>
+
+                            <!-- Platform Selection -->
+                            <div class="mb-4">
+                                <label class="form-label fw-bold">Select Platforms</label>
+                                <div class="row">
+                                    <div class="col-md-4 mb-2">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" 
+                                                   name="platforms" value="twitter" id="twitter1" checked>
+                                            <label class="form-check-label" for="twitter1">
+                                                <i class="fab fa-twitter text-info me-1"></i>Twitter
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4 mb-2">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" 
+                                                   name="platforms" value="instagram" id="instagram1" checked>
+                                            <label class="form-check-label" for="instagram1">
+                                                <i class="fab fa-instagram text-danger me-1"></i>Instagram
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4 mb-2">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" 
+                                                   name="platforms" value="reddit" id="reddit1" checked>
+                                            <label class="form-check-label" for="reddit1">
+                                                <i class="fab fa-reddit text-warning me-1"></i>Reddit
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4 mb-2">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" 
+                                                   name="platforms" value="facebook" id="facebook1">
+                                            <label class="form-check-label" for="facebook1">
+                                                <i class="fab fa-facebook text-primary me-1"></i>Facebook
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4 mb-2">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" 
+                                                   name="platforms" value="linkedin" id="linkedin1">
+                                            <label class="form-check-label" for="linkedin1">
+                                                <i class="fab fa-linkedin text-info me-1"></i>LinkedIn
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4 mb-2">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" 
+                                                   name="platforms" value="tiktok" id="tiktok1">
+                                            <label class="form-check-label" for="tiktok1">
+                                                <i class="fab fa-tiktok text-dark me-1"></i>TikTok
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4 mb-2">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" 
+                                                   name="platforms" value="youtube" id="youtube1">
+                                            <label class="form-check-label" for="youtube1">
+                                                <i class="fab fa-youtube text-danger me-1"></i>YouTube
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4 mb-2">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" 
+                                                   name="platforms" value="github" id="github1">
+                                            <label class="form-check-label" for="github1">
+                                                <i class="fab fa-github text-secondary me-1"></i>GitHub
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4 mb-2">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" 
+                                                   name="platforms" value="telegram" id="telegram1">
+                                            <label class="form-check-label" for="telegram1">
+                                                <i class="fab fa-telegram text-info me-1"></i>Telegram
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <button type="submit" class="btn btn-primary btn-lg w-100">
+                                <i class="fas fa-search me-2"></i>Search Username
+                            </button>
+                        </form>
+                    </div>
+
+                    <!-- Keyword Search -->
+                    <div class="tab-pane fade" id="keyword-search" role="tabpanel">
+                        <form method="POST" action="{{ url_for('search') }}" id="keywordForm">
+                            <input type="hidden" name="search_type" value="keyword">
+                            
+                            <div class="mb-4">
+                                <label for="keyword" class="form-label fw-bold">Keyword or Phrase</label>
+                                <div class="input-group">
+                                    <span class="input-group-text">
+                                        <i class="fas fa-hashtag"></i>
+                                    </span>
+                                    <input type="text" class="form-control form-control-lg" 
+                                           id="keyword" name="query" 
+                                           placeholder="e.g., artificial intelligence" required>
+                                </div>
+                                <div class="form-text">
+                                    Enter keywords to find posts and comments containing them
+                                </div>
+                            </div>
+
+                            <!-- Platform Selection -->
+                            <div class="mb-4">
+                                <label class="form-label fw-bold">Select Platforms</label>
+                                <div class="row">
+                                    <div class="col-md-4 mb-2">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" 
+                                                   name="platforms" value="twitter" id="twitter2" checked>
+                                            <label class="form-check-label" for="twitter2">
+                                                <i class="fab fa-twitter text-info me-1"></i>Twitter
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4 mb-2">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" 
+                                                   name="platforms" value="reddit" id="reddit2" checked>
+                                            <label class="form-check-label" for="reddit2">
+                                                <i class="fab fa-reddit text-warning me-1"></i>Reddit
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4 mb-2">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" 
+                                                   name="platforms" value="google" id="google2" checked>
+                                            <label class="form-check-label" for="google2">
+                                                <i class="fab fa-google text-primary me-1"></i>Google
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4 mb-2">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" 
+                                                   name="platforms" value="yandex" id="yandex2">
+                                            <label class="form-check-label" for="yandex2">
+                                                <i class="fas fa-search text-secondary me-1"></i>Yandex
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4 mb-2">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" 
+                                                   name="platforms" value="duckduckgo" id="duckduckgo2">
+                                            <label class="form-check-label" for="duckduckgo2">
+                                                <i class="fas fa-user-secret text-success me-1"></i>DuckDuckGo
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="form-text">
+                                    <small><i class="fas fa-info-circle me-1"></i>
+                                    Instagram keyword search is limited due to platform restrictions</small>
+                                </div>
+                            </div>
+
+                            <button type="submit" class="btn btn-primary btn-lg w-100">
+                                <i class="fas fa-search me-2"></i>Search Keywords
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Info Section -->
+        <div class="row mt-5">
+            <div class="col-md-4 mb-3">
+                <div class="card h-100 border-info">
+                    <div class="card-body text-center">
+                        <i class="fas fa-shield-alt fa-2x text-info mb-3"></i>
+                        <h5>Privacy Focused</h5>
+                        <p class="text-muted small">
+                            Uses your existing browser sessions to avoid detection and respect platform terms
+                        </p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4 mb-3">
+                <div class="card h-100 border-warning">
+                    <div class="card-body text-center">
+                        <i class="fas fa-clock fa-2x text-warning mb-3"></i>
+                        <h5>Rate Limited</h5>
+                        <p class="text-muted small">
+                            Includes delays between requests to prevent blocking and ensure reliable results
+                        </p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4 mb-3">
+                <div class="card h-100 border-success">
+                    <div class="card-body text-center">
+                        <i class="fas fa-download fa-2x text-success mb-3"></i>
+                        <h5>Export Results</h5>
+                        <p class="text-muted small">
+                            Download your search results in JSON format for further analysis
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Legal Notice -->
+        <div class="alert alert-warning mt-4" role="alert">
+            <i class="fas fa-exclamation-triangle me-2"></i>
+            <strong>Legal Notice:</strong> This tool is for educational and legitimate research purposes only. 
+            Please respect platform terms of service and applicable privacy laws. Users are responsible for 
+            ensuring their use complies with all applicable regulations.
+        </div>
+    </div>
+</div>
+{% endblock %}

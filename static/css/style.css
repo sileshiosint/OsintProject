@@ -1,0 +1,240 @@
+/* Custom styles for Social Media OSINT Tool */
+
+:root {
+  /* Dark theme colors that complement Bootstrap dark theme */
+  --osint-primary: 219 91% 60%;      /* Blue accent */
+  --osint-secondary: 210 11% 71%;    /* Gray accent */
+  --osint-success: 158 64% 52%;      /* Green accent */
+  --osint-warning: 45 93% 58%;       /* Yellow accent */
+  --osint-danger: 354 70% 54%;       /* Red accent */
+  --osint-info: 199 89% 48%;         /* Cyan accent */
+  --osint-background: 210 11% 15%;   /* Dark background */
+  --osint-surface: 210 11% 18%;      /* Card background */
+}
+
+/* Body and layout improvements */
+body {
+  background-color: hsl(var(--osint-background));
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+main {
+  flex: 1;
+}
+
+/* Custom card styling */
+.card {
+  background-color: hsl(var(--osint-surface));
+  border-color: hsl(var(--osint-secondary) / 0.2);
+  box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.3);
+  transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+}
+
+.card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.4);
+}
+
+/* Form styling improvements */
+.form-control:focus {
+  border-color: hsl(var(--osint-primary));
+  box-shadow: 0 0 0 0.2rem hsl(var(--osint-primary) / 0.25);
+}
+
+.form-check-input:checked {
+  background-color: hsl(var(--osint-primary));
+  border-color: hsl(var(--osint-primary));
+}
+
+/* Navigation enhancements */
+.navbar-brand {
+  font-weight: 600;
+  font-size: 1.25rem;
+}
+
+.navbar-nav .nav-link {
+  transition: color 0.2s ease-in-out;
+}
+
+.navbar-nav .nav-link:hover {
+  color: hsl(var(--osint-primary)) !important;
+}
+
+/* Button enhancements */
+.btn-primary {
+  background-color: hsl(var(--osint-primary));
+  border-color: hsl(var(--osint-primary));
+}
+
+.btn-primary:hover {
+  background-color: hsl(var(--osint-primary) / 0.9);
+  border-color: hsl(var(--osint-primary) / 0.9);
+}
+
+/* Tab styling */
+.nav-tabs .nav-link.active {
+  background-color: hsl(var(--osint-surface));
+  border-color: hsl(var(--osint-secondary) / 0.3);
+  color: hsl(var(--osint-primary));
+}
+
+.nav-tabs .nav-link:hover {
+  border-color: hsl(var(--osint-secondary) / 0.3);
+  color: hsl(var(--osint-primary));
+}
+
+/* Progress bar styling */
+.progress {
+  background-color: hsl(var(--osint-background));
+}
+
+.progress-bar {
+  background-color: hsl(var(--osint-primary));
+}
+
+/* Loading spinner enhancement */
+.spinner-border {
+  color: hsl(var(--osint-primary)) !important;
+}
+
+/* Platform-specific colors */
+.border-info { border-color: hsl(var(--osint-info)) !important; }
+.border-warning { border-color: hsl(var(--osint-warning)) !important; }
+.border-danger { border-color: hsl(var(--osint-danger)) !important; }
+.border-success { border-color: hsl(var(--osint-success)) !important; }
+
+.bg-info { background-color: hsl(var(--osint-info)) !important; }
+.bg-warning { background-color: hsl(var(--osint-warning)) !important; }
+.bg-danger { background-color: hsl(var(--osint-danger)) !important; }
+.bg-success { background-color: hsl(var(--osint-success)) !important; }
+
+.text-info { color: hsl(var(--osint-info)) !important; }
+.text-warning { color: hsl(var(--osint-warning)) !important; }
+.text-danger { color: hsl(var(--osint-danger)) !important; }
+.text-success { color: hsl(var(--osint-success)) !important; }
+
+/* Table improvements */
+.table-hover tbody tr:hover {
+  background-color: hsl(var(--osint-surface));
+}
+
+/* Modal enhancements */
+.modal-content {
+  background-color: hsl(var(--osint-surface));
+  border-color: hsl(var(--osint-secondary) / 0.2);
+}
+
+.modal-header {
+  border-color: hsl(var(--osint-secondary) / 0.2);
+}
+
+/* Alert styling */
+.alert {
+  border: none;
+  border-radius: 0.5rem;
+}
+
+/* Footer styling */
+footer {
+  background-color: hsl(var(--osint-background)) !important;
+  border-top: 1px solid hsl(var(--osint-secondary) / 0.2);
+}
+
+/* Responsive improvements */
+@media (max-width: 768px) {
+  .display-4 {
+    font-size: 2rem;
+  }
+  
+  .card-body {
+    padding: 1rem;
+  }
+  
+  .btn-lg {
+    padding: 0.75rem 1rem;
+    font-size: 1rem;
+  }
+}
+
+/* Animation for cards */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.card {
+  animation: fadeInUp 0.6s ease-out;
+}
+
+/* Loading animation */
+@keyframes pulse {
+  0% { opacity: 1; }
+  50% { opacity: 0.5; }
+  100% { opacity: 1; }
+}
+
+.loading-text {
+  animation: pulse 2s infinite;
+}
+
+/* Scrollbar styling for dark theme */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: hsl(var(--osint-background));
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--osint-secondary) / 0.5);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--osint-secondary) / 0.7);
+}
+
+/* Input group enhancements */
+.input-group-text {
+  background-color: hsl(var(--osint-surface));
+  border-color: hsl(var(--osint-secondary) / 0.3);
+  color: hsl(var(--osint-secondary));
+}
+
+/* Status message styling */
+#statusMessage {
+  font-style: italic;
+}
+
+/* Platform icon colors */
+.fab.fa-twitter { color: #1da1f2; }
+.fab.fa-instagram { color: #e4405f; }
+.fab.fa-reddit { color: #ff4500; }
+.fab.fa-facebook { color: #1877f2; }
+
+/* Results styling */
+.results-card {
+  border-left: 4px solid hsl(var(--osint-primary));
+}
+
+.platform-header {
+  border-bottom: 2px solid hsl(var(--osint-primary) / 0.2);
+}
+
+/* Export button styling */
+.export-section {
+  background-color: hsl(var(--osint-surface));
+  border: 1px dashed hsl(var(--osint-secondary) / 0.3);
+  border-radius: 0.5rem;
+  padding: 2rem;
+  text-align: center;
+}
