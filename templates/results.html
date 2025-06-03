@@ -42,31 +42,139 @@
 
             const data = await response.json();
             const resultsDiv = document.getElementById("results");
-            resultsDiv.innerHTML = "";
+            resultsDiv.innerHTML = ""; // Clear loading message
+
+            if (data.error) {
+                resultsDiv.innerHTML = `<p class="error">Error fetching results: ${data.error}</p>`;
+                return;
+            }
 
             if (data.results && data.results.length > 0) {
-                fetchedResults = data.results;
-                data.results.forEach(result => {
-                    const card = document.createElement("div");
-                    card.classList.add("result-card");
+                fetchedResults = data.results; // Store for export
+                data.results.forEach(platformResult => {
+                    const platformCard = document.createElement("div");
+                    platformCard.classList.add("result-card");
 
-                    if (result.status === "error") {
-                        card.innerHTML = `<strong>${result.platform}</strong>: <span class="error">Error - ${result.error}</span>`;
-                    } else {
-                        const resultsList = result.results.map(item => `<li>${item}</li>`).join("");
-                        card.innerHTML = `
-                            <strong>${result.platform}</strong>:
-                            <ul>${resultsList}</ul>
-                            <div class="html-preview"><strong>HTML:</strong><br>${result.html || "No HTML"}</div>
-                            ${result.screenshot ? `<img src="${result.screenshot}" class="screenshot" alt="Screenshot of ${result.platform}">` : ""}
-                        `;
+                    let contentHtml = `<h3>Platform: ${platformResult.platform}</h3>`;
+                    contentHtml += `<p>Status: ${platformResult.status}</p>`;
+                    if (platformResult.timestamp) {
+                        contentHtml += `<p>Last Scraped: ${new Date(platformResult.timestamp).toLocaleString()}</p>`;
                     }
 
-                    resultsDiv.appendChild(card);
+                    if (platformResult.status === "success" && platformResult.data && platformResult.data.length > 0) {
+                        contentHtml += `<h4>Items:</h4><ul>`;
+                        platformResult.data.forEach(item => {
+                            contentHtml += `<li>`;
+                            let itemDetails = '';
+                            if (item.author_display_name && item.author_screen_name) { // Twitter specific
+                                itemDetails += `<strong>Author:</strong> ${item.author_display_name} (${item.author_screen_name})<br>`;
+                            } else if (item.author_name) { // Facebook specific
+                                itemDetails += `<strong>Author:</strong> ${item.author_name}`;
+                                if (item.author_url) {
+                                    itemDetails += ` (<a href="${item.author_url}" target="_blank">Profile</a>)<br>`;
+                                } else {
+                                    itemDetails += `<br>`;
+                                }
+                            } else if (item.author) {
+                                itemDetails += `<strong>Author:</strong> ${item.author}<br>`;
+                            } else if (item.sender_chat_name) { // Telegram specific
+                                itemDetails += `<strong>Chat/Sender:</strong> ${item.sender_chat_name}<br>`;
+                            }
+
+                            if (item.text) { // Common for Twitter, Facebook
+                                itemDetails += `<strong>Text:</strong> ${escapeHtml(item.text)}<br>`;
+                            } else if (item.text_snippet) { // Telegram
+                                itemDetails += `<strong>Snippet:</strong> ${escapeHtml(item.text_snippet)}<br>`;
+                            }
+
+                            if (item.timestamp) {
+                                itemDetails += `<strong>Time:</strong> ${new Date(item.timestamp).toLocaleString()}<br>`;
+                            }
+
+                            if (item.url) { // Twitter tweet URL
+                                itemDetails += `<strong>Link:</strong> <a href="${item.url}" target="_blank">${item.url}</a><br>`;
+                            } else if (item.post_url) { // Facebook post URL
+                                itemDetails += `<strong>Link:</strong> <a href="${item.post_url}" target="_blank">${item.post_url}</a><br>`;
+                            } else if (item.link) { // Telegram link
+                                itemDetails += `<strong>Link:</strong> <a href="${item.link}" target="_blank">${item.link}</a><br>`;
+                            }
+
+                            if (item.media_urls && item.media_urls.length > 0) {
+                                itemDetails += `<strong>Media:</strong><ul>`;
+                                item.media_urls.forEach(mediaUrl => {
+                                    if (mediaUrl.toLowerCase().startsWith("video content present")) {
+                                        itemDetails += `<li>${mediaUrl}</li>`;
+                                    } else {
+                                        itemDetails += `<li><a href="${mediaUrl}" target="_blank"><img src="${mediaUrl}" style="max-width:100px; max-height:100px; margin:5px;" alt="media"></a></li>`;
+                                    }
+                                });
+                                itemDetails += `</ul>`;
+                            }
+
+                            if (itemDetails === '') itemDetails = 'No details extracted for this item.';
+                            contentHtml += itemDetails + `</li><hr>`;
+                        });
+                        contentHtml += `</ul>`;
+                    } else if (platformResult.status === "error" && platformResult.error_details) {
+                        contentHtml += `<p class="error">Error: ${platformResult.error_details}</p>`;
+                         if (platformResult.data && platformResult.data.error_message) { // From scraper.py error saving
+                            contentHtml += `<p class="error">Details: ${platformResult.data.error_message}</p>`;
+                        }
+                    } else if (platformResult.status === "no_results_found") {
+                        contentHtml += `<p>No results found for this platform.</p>`;
+                        if (platformResult.data && platformResult.data.notes) { // Corrected variable name
+                             contentHtml += `<p>Notes: ${platformResult.data.notes}</p>`;
+                        }
+                    } else {
+                         contentHtml += `<p>No data available or an issue occurred (Status: ${platformResult.status}).</p>`;
+                    }
+
+                    if (platformResult.screenshot_path) {
+                        // Assuming screenshots are served from a '/screenshots/' route or directly accessible if in static
+                        // For simplicity, let's assume they are in static/screenshots for now if that's where they are saved.
+                        // The path returned by scraper might be absolute or relative to app root.
+                        // For display, it needs to be a URL path.
+                        let webPath = platformResult.screenshot_path;
+                        if (webPath.startsWith('debug_') || webPath.includes('/')) { // If it's a path like debug_twitter... or has slashes
+                             // This might need adjustment based on how screenshots are served by Flask
+                             // If they are saved in static/screenshots, then:
+                             // webPath = `/static/screenshots/${webPath.split('/').pop()}`;
+                             // For now, just display the path as a link if it's not obviously a URL
+                             if (!webPath.startsWith('http') && !webPath.startsWith('/static/')) {
+                                 webPath = `/static/screenshots/${webPath.split(/[\\/]/).pop()}`; // Try to make it a static path
+                             }
+                        }
+                        contentHtml += `<p><a href="${webPath}" target="_blank">View Screenshot</a> (Path: ${platformResult.screenshot_path})</p>`;
+                    }
+
+                    // HTML preview (from original scraper output, not DB)
+                    // This part might be removed if html_preview_available is not consistently useful or too large
+                    if (platformResult.html_preview_available) {
+                         // contentHtml += `<div class="html-preview"><strong>HTML Preview:</strong> Available (content too large to display here by default)</div>`;
+                         // For now, let's not display the full HTML here as it was in the old version.
+                         // It was part of the 'result' object directly, now it's from 'original_scraper_output_for_platform'
+                         // which we decided to merge into api_platform_result.
+                    }
+
+
+                    platformCard.innerHTML = contentHtml;
+                    resultsDiv.appendChild(platformCard);
                 });
             } else {
-                resultsDiv.innerHTML = "No results found.";
+                resultsDiv.innerHTML = "<p>No results found or an error occurred.</p>";
             }
+        }
+
+        function escapeHtml(unsafe) {
+            if (typeof unsafe !== 'string') {
+                return unsafe;
+            }
+            return unsafe
+                 .replace(/&/g, "&amp;")
+                 .replace(/</g, "&lt;")
+                 .replace(/>/g, "&gt;")
+                 .replace(/"/g, "&quot;")
+                 .replace(/'/g, "&#039;");
         }
 
         async function exportResults(type) {

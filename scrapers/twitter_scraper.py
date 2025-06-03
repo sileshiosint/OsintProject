@@ -1,7 +1,10 @@
 import asyncio
 from playwright.async_api import async_playwright
-from scrapers.config import USER_DATA_DIR, COMMON_USER_AGENT, HEADLESS_MODE # Import from config
-import os # For os.path.exists and os.makedirs
+from scrapers.config import USER_DATA_DIR, COMMON_USER_AGENT, HEADLESS_MODE
+import os
+import logging
+
+logger = logging.getLogger(__name__)
 
 async def scrape_twitter(query: str, search_type: str):
     """
@@ -17,154 +20,197 @@ async def scrape_twitter(query: str, search_type: str):
     """
     results = []
     html_content = "Error: Playwright page content not captured."
-    screenshot_path = f"twitter_search_{query.replace(' ','_')}_{search_type}.png" # Default screenshot name
+    status_detail = "Scraping process started."
+    screenshot_path = f"twitter_search_{query.replace(' ','_')}_{search_type}.png"
 
-    # Ensure USER_DATA_DIR exists before Playwright tries to use it
+    logger.info(f"Starting Twitter scraper for query: '{query}', type: '{search_type}'")
+
     if not os.path.exists(USER_DATA_DIR):
-        print(f"Twitter Scraper: Creating USER_DATA_DIR at {USER_DATA_DIR}")
+        logger.info(f"Creating USER_DATA_DIR for Twitter at {USER_DATA_DIR}")
         os.makedirs(USER_DATA_DIR, exist_ok=True)
-    # else:
-        # print(f"Twitter Scraper: USER_DATA_DIR {USER_DATA_DIR} already exists.") # Less verbose
 
     async with async_playwright() as p:
-        context = await p.chromium.launch_persistent_context(
-            USER_DATA_DIR,
-            headless=HEADLESS_MODE,
-            user_agent=COMMON_USER_AGENT,
-            accept_downloads=True,
-            ignore_https_errors=True,
-            bypass_csp=True,
-            args=['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu'],
-            viewport={'width': 1280, 'height': 900}
-        )
-        page = await context.new_page()
-
+        context = None
+        page = None
         try:
-            # Base URL for search, query is added, and "f=live" for "Latest" tab.
+            context = await p.chromium.launch_persistent_context(
+                USER_DATA_DIR,
+                headless=HEADLESS_MODE,
+                user_agent=COMMON_USER_AGENT,
+                accept_downloads=True,
+                ignore_https_errors=True,
+                bypass_csp=True,
+                args=['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu'],
+                viewport={'width': 1280, 'height': 900}
+            )
+            page = await context.new_page()
+
             base_url = "https://twitter.com/search"
             params = f"q={query}&src=typed_query"
             if search_type.lower() == "recent":
                 params += "&f=live"
 
             full_url = f"{base_url}?{params}"
-            print(f"Navigating to Twitter search URL: {full_url}")
 
-            await page.goto(full_url, wait_until="domcontentloaded", timeout=25000)
-            await page.wait_for_timeout(3000) # Allow some initial loading, potential redirects or dynamic content
+            logger.debug(f"Navigating to Twitter URL: {full_url}")
+            await page.goto(full_url, wait_until="networkidle", timeout=30000)
+            await page.wait_for_timeout(3000)
 
-            # Check if login is truly successful - look for a primary feed or known logged-in element
-            # For example, the "Home" link in the navigation sidebar.
-            # If not found, it might still be on a login/interstitial page.
             primary_nav_selector = 'nav[aria-label="Primary"] a[data-testid="AppTabBar_Home_Link"]'
+            logged_in_confirmation_selector = 'div[data-testid="primaryColumn"]'
+
             try:
-                await page.wait_for_selector(primary_nav_selector, timeout=10000, state="visible")
-                print("Logged-in interface confirmed (Home link found).")
-            except Exception:
-                print("Warning: Main logged-in interface (Home link) not confirmed. Page might be unexpected (e.g. login, captcha, interstitial).")
+                await page.wait_for_selector(logged_in_confirmation_selector, timeout=15000, state="visible")
+                logger.info("Logged-in interface confirmed by primary column.")
+                if not await page.locator(primary_nav_selector).is_visible(timeout=2000):
+                    logger.warning("Home link not immediately visible, but primary column found. Proceeding.")
+            except Exception as e_login_check:
+                logger.warning(f"Main logged-in interface not confirmed (primary column missing): {e_login_check}. Page might be login/captcha/interstitial.")
+                status_detail = "Login required or verification page encountered."
                 html_content = await page.content()
-                await page.screenshot(path=f"debug_twitter_{query.replace(' ','_')}_unexpected_page.png")
-                # Proceeding anyway, as sometimes parts of the page load even if the main nav isn't immediately there.
+                screenshot_path = f"debug_twitter_{query.replace(' ','_')}_login_required_page.png"
+                await page.screenshot(path=screenshot_path)
+                # No early return, finally block will close context
+                # results will be empty, status_detail indicates issue
 
-            # Scrolling to load tweets
-            collected_tweets_count = 0
-            max_tweets_to_collect = 15
-            scroll_attempts = 0
-            max_scroll_attempts = 10 # Try scrolling up to 10 times
+            if status_detail == "Scraping process started.": # Only proceed if login check passed
+                logger.debug("Attempting to handle cookie/login pop-ups (if any remain).")
+                cookie_selectors = ['div[data-testid="placementTracking"] button[aria-label*="Accept"]', 'button:has-text("Accept all cookies")']
+                for selector in cookie_selectors:
+                    try:
+                        if await page.locator(selector).first.is_visible(timeout=1000):
+                            logger.info(f"Found and clicking cookie/consent button: {selector}")
+                            await page.locator(selector).first.click()
+                            await page.wait_for_timeout(1000)
+                    except: pass
 
-            tweet_selector = 'article[data-testid="tweet"]'
+                logger.debug("Starting tweet extraction loop.")
+                collected_tweets_count = 0
+                max_tweets_to_collect = 15
+                scroll_attempts = 0
+                max_scroll_attempts = 10
+                tweet_selector = 'article[data-testid="tweet"]'
+                seen_tweet_urls = set()
 
-            while collected_tweets_count < max_tweets_to_collect and scroll_attempts < max_scroll_attempts:
-                await page.wait_for_selector(tweet_selector, timeout=20000, state="attached")
-                tweet_elements = await page.query_selector_all(tweet_selector)
-
-                if not tweet_elements:
-                    print("No tweet articles found on the page.")
-                    break
-
-                print(f"Found {len(tweet_elements)} tweet elements on page (scroll attempt {scroll_attempts + 1}).")
-
-                for tweet_element in tweet_elements:
-                    if collected_tweets_count >= max_tweets_to_collect:
+                while collected_tweets_count < max_tweets_to_collect and scroll_attempts < max_scroll_attempts:
+                    try:
+                        await page.wait_for_selector(tweet_selector, timeout=15000, state="attached")
+                    except Exception:
+                        logger.warning(f"Tweet selector '{tweet_selector}' not found after {scroll_attempts} scrolls. Ending.")
+                        if status_detail == "Scraping process started.": status_detail = "No more tweets found or page structure changed."
                         break
 
-                    tweet_data = {}
-                    try:
-                        # Tweet URL and Timestamp
-                        time_element = await tweet_element.query_selector('time')
-                        if time_element:
-                            tweet_data["timestamp"] = await time_element.get_attribute('datetime')
-                            link_element = await time_element.query_selector('xpath=./ancestor::a[@role="link"]')
-                            if link_element:
-                                tweet_url = await link_element.get_attribute('href')
-                                if tweet_url and not tweet_url.startswith(('http://', 'https://')):
-                                    tweet_url = f"https://twitter.com{tweet_url}"
-                                tweet_data["url"] = tweet_url
+                    tweet_elements = await page.query_selector_all(tweet_selector)
+                    if not tweet_elements:
+                        logger.info("No tweet articles found on the page in current view.")
+                        if status_detail == "Scraping process started.": status_detail = "No tweets visible in current view."
+                        break
 
-                        # Tweet Text
-                        text_element = await tweet_element.query_selector('div[data-testid="tweetText"]')
-                        if text_element:
-                            tweet_data["text"] = await text_element.inner_text()
+                    logger.debug(f"Processing {len(tweet_elements)} tweet elements found in view (scroll attempt {scroll_attempts + 1}).")
+                    new_tweets_found_this_scroll = 0
 
-                        # Author Info
-                        user_name_element = await tweet_element.query_selector('div[data-testid="User-Name"]')
-                        if user_name_element:
-                            # Display Name (often the first span or a specific complex selector)
-                            # This can be tricky as structure varies.
-                            display_name_el = await user_name_element.query_selector('span > span > span:not([dir="ltr"])') # Heuristic
-                            if not display_name_el: # Fallback
-                                display_name_el = await user_name_element.query_selector('div > div > div > a > div > div > span > span:not([dir="ltr"])')
+                    for tweet_element in tweet_elements:
+                        if collected_tweets_count >= max_tweets_to_collect:
+                            break
 
-                            if display_name_el:
-                                tweet_data["author_display_name"] = await display_name_el.inner_text()
+                        tweet_data = {}
+                        tweet_url = None
+                        try:
+                            time_element = await tweet_element.query_selector('time')
+                            if time_element:
+                                tweet_data["timestamp"] = await time_element.get_attribute('datetime')
+                                link_element = await time_element.query_selector('xpath=./ancestor::a[@role="link"]')
+                                if link_element:
+                                    relative_url = await link_element.get_attribute('href')
+                                    if relative_url:
+                                        tweet_url = f"https://twitter.com{relative_url}" if relative_url.startswith('/') else relative_url
+                                        tweet_data["url"] = tweet_url
 
-                            # Screen Name (handle starting with @)
-                            screen_name_el = await user_name_element.query_selector('div[dir="ltr"] span')
-                            if screen_name_el:
-                                screen_name = await screen_name_el.inner_text()
-                                tweet_data["author_screen_name"] = screen_name if screen_name.startswith('@') else f"@{screen_name}"
+                            if tweet_url and tweet_url in seen_tweet_urls:
+                                continue
 
-                        # Check if we have enough data to consider it a valid tweet extract
-                        if tweet_data.get("url") and tweet_data.get("text"):
-                            # Avoid duplicates based on URL
-                            if not any(t.get("url") == tweet_data.get("url") for t in results):
+                            text_element = await tweet_element.query_selector('div[data-testid="tweetText"]')
+                            if text_element: tweet_data["text"] = await text_element.inner_text()
+
+                            user_name_element = await tweet_element.query_selector('div[data-testid="User-Name"]')
+                            if user_name_element:
+                                display_name_el = await user_name_element.query_selector('span > span > span:not([dir="ltr"])')
+                                if not display_name_el:
+                                    display_name_el = await user_name_element.query_selector('div > div > div > a > div > div > span > span:not([dir="ltr"])')
+                                if display_name_el: tweet_data["author_display_name"] = await display_name_el.inner_text()
+
+                                screen_name_el = await user_name_element.query_selector('div[dir="ltr"] span')
+                                if screen_name_el:
+                                    screen_name = await screen_name_el.inner_text()
+                                    tweet_data["author_screen_name"] = screen_name if screen_name.startswith('@') else f"@{screen_name}"
+
+                            if tweet_data.get("url") and (tweet_data.get("text") or tweet_data.get("author_screen_name")):
                                 results.append(tweet_data)
+                                if tweet_url: seen_tweet_urls.add(tweet_url)
                                 collected_tweets_count += 1
-                                print(f"Collected tweet #{collected_tweets_count}: {tweet_data.get('url')}")
+                                new_tweets_found_this_scroll +=1
+                            else:
+                                logger.warning(f"Could not extract essential data (URL or text/author) from a tweet element. Data: {tweet_data}")
 
-                    except Exception as e_extract:
-                        print(f"Error extracting data from a tweet element: {e_extract}")
-                        continue # Move to the next tweet element
+                        except Exception as e_extract:
+                            logger.error(f"Error extracting data from a tweet element: {e_extract}", exc_info=True)
+                            continue
 
-                if collected_tweets_count < max_tweets_to_collect:
-                    print(f"Scrolling down to load more tweets (collected {collected_tweets_count}/{max_tweets_to_collect})...")
-                    await page.evaluate('window.scrollBy(0, window.innerHeight * 2)') # Scroll more aggressively
-                    await page.wait_for_timeout(3000 + (scroll_attempts * 500)) # Dynamic wait, longer for later scrolls
+                    if collected_tweets_count >= max_tweets_to_collect:
+                        logger.info(f"Reached max tweets to collect ({max_tweets_to_collect}).")
+                        if status_detail == "Scraping process started.": status_detail = f"Collected {collected_tweets_count} tweets."
+                        break
+
+                    if new_tweets_found_this_scroll == 0 and scroll_attempts > 1:
+                        logger.info("No new tweets found in this scroll iteration. Assuming end of results or issue.")
+                        if status_detail == "Scraping process started.": status_detail = f"Collected {collected_tweets_count} tweets. No new tweets found after scrolling."
+                        break
+
+                    logger.debug(f"Scrolling down to load more tweets (collected {collected_tweets_count}/{max_tweets_to_collect})...")
+                    await page.evaluate('window.scrollBy(0, window.innerHeight * 1.5)')
+                    await page.wait_for_timeout(2500 + (scroll_attempts * 300))
                     scroll_attempts += 1
-                else:
-                    print("Reached max tweets to collect or no more new tweets after scrolling.")
-                    break
 
-            if not results:
-                 print("No tweets were successfully scraped.")
+                if not results:
+                     logger.info("No tweets were successfully scraped for query.")
+                     if status_detail == "Scraping process started.":
+                        status_detail = "Search completed, but no public tweets found matching the query or accessible."
+                elif status_detail == "Scraping process started.": # If results found and no other specific status
+                    status_detail = f"Successfully collected {len(results)} tweets."
 
-            html_content = await page.content() # Get final page HTML
-            await page.screenshot(path=screenshot_path) # Screenshot of the final state
-            print(f"Final screenshot saved to {screenshot_path}")
+            logger.info(f"Finished scraping for '{query}'. {status_detail}")
+            if page and not page.is_closed(): # Ensure page is usable for final capture
+                html_content = await page.content()
+                # Update screenshot path for final successful state
+                screenshot_path = f"twitter_search_{query.replace(' ','_')}_{search_type}_final.png"
+                await page.screenshot(path=screenshot_path)
+                logger.debug(f"Final screenshot saved to {screenshot_path}")
+            else:
+                logger.warning("Page was closed or unavailable for final HTML/screenshot capture.")
+                html_content = "Page not available for final HTML capture."
+
 
         except Exception as e_general:
-            print(f"An unexpected error occurred during Twitter scraping: {type(e_general).__name__} - {e_general}")
+            logger.error(f"An unexpected error occurred during Twitter scraping for query '{query}': {e_general}", exc_info=True)
+            if status_detail == "Scraping process started.": status_detail = f"Critical error during scraping: {type(e_general).__name__}"
+            # Update screenshot path for general error
             screenshot_path = f"debug_twitter_{query.replace(' ','_')}_{search_type}_general_error.png"
             try:
                 if page and not page.is_closed():
                     current_html = await page.content()
                     if current_html: html_content = current_html
                     await page.screenshot(path=screenshot_path)
-                    print(f"Error screenshot saved to {screenshot_path}")
+                    logger.debug(f"Error screenshot saved to {screenshot_path}")
             except Exception as e_debug_general:
-                print(f"Could not capture page content/screenshot during general error handling: {e_debug_general}")
+                logger.error(f"Could not capture page content/screenshot during general error handling: {e_debug_general}", exc_info=True)
         finally:
             if context:
-                await context.close()
+                try:
+                    await context.close()
+                    logger.debug("Playwright context closed.")
+                except Exception as e_close:
+                    logger.error(f"Error closing context: {e_close}", exc_info=True)
+
 
     return {
         "platform": "twitter",
@@ -172,18 +218,15 @@ async def scrape_twitter(query: str, search_type: str):
         "search_type": search_type,
         "results": results,
         "html": html_content,
-        "screenshot": screenshot_path
+        "screenshot": screenshot_path,
+        "status_detail": status_detail
     }
 
 if __name__ == '__main__':
     async def main():
         print("Twitter Scraper - Logged-in Test")
-        # Test with a common query. User should be logged into Twitter in their Chrome profile.
-        # The USER_DATA_DIR in scrapers/config.py should point to this profile.
-        # Set HEADLESS_MODE=False in scrapers/config.py for easier debugging if needed.
-
         test_query = "AI ethics"
-        test_search_type = "recent" # or "top"
+        test_search_type = "recent"
 
         print(f"\nAttempting to scrape Twitter for '{test_query}' ({test_search_type})...")
         data = await scrape_twitter(test_query, test_search_type)
@@ -195,13 +238,14 @@ if __name__ == '__main__':
                 print(f"  Author: {tweet.get('author_display_name', 'N/A')} ({tweet.get('author_screen_name', 'N/A')})")
                 print(f"  Timestamp: {tweet.get('timestamp', 'N/A')}")
                 print(f"  URL: {tweet.get('url', 'N/A')}")
-                print(f"  Text: {tweet.get('text', 'N/A')[:100]}...") # Print first 100 chars of text
+                print(f"  Text: {tweet.get('text', 'N/A')[:100]}...")
                 print("-" * 20)
         else:
             print("No tweets successfully extracted.")
 
         print(f"\nHTML content captured: {'Yes (length: ' + str(len(data['html'])) + ')' if data['html'] and not data['html'].startswith('Error:') else 'No or error'}")
         print(f"Screenshot saved at: {data['screenshot']}")
+        print(f"Status Detail: {data.get('status_detail')}")
         print("--- Test Complete ---")
 
     asyncio.run(main())
