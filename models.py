@@ -1,6 +1,12 @@
-from app import db
+from flask_sqlalchemy import SQLAlchemy # Import directly
+from sqlalchemy.orm import DeclarativeBase # Import directly
 from datetime import datetime
 import json
+
+# Define Base and db instance here, so it can be imported by app.py
+class Base(DeclarativeBase):
+    pass
+db = SQLAlchemy(model_class=Base)
 
 class SearchResult(db.Model):
     """Model to store search results for caching and export functionality"""
