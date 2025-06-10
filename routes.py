@@ -16,16 +16,16 @@ def index():
 def search():
     search_query = request.form.get('search_query')
     search_type = request.form.get('search_type')
-    selected_platforms = request.form.getlist('platforms')
-    current_app.logger.info(f"Search initiated. Query: '{search_query}', Type: '{search_type}', Platforms: {selected_platforms}")
+    # selected_platforms = request.form.getlist('platforms') # Removed: now Facebook-only
+    current_app.logger.info(f"Search initiated. Query: '{search_query}', Type: '{search_type}', Platforms: ['Facebook']")
 
-    if not search_query or not selected_platforms:
-        current_app.logger.warning(f"Search validation failed. Query: '{search_query}', Platforms: {selected_platforms}")
-        flash('Please enter a search query and select at least one platform.')
+    if not search_query: # Removed selected_platforms check
+        current_app.logger.warning(f"Search validation failed. Query: '{search_query}'")
+        flash('Please enter a search query.') # Updated flash message
         return redirect(url_for('index'))
 
     return render_template('results.html', search_query=search_query,
-                           search_type=search_type, platforms=selected_platforms)
+                           search_type=search_type, platforms=["Facebook"]) # Hardcoded Facebook
 
 @app.route('/api/execute_search', methods=['POST'])
 def execute_search():
@@ -98,8 +98,8 @@ def execute_search():
         # For now, returning a specific error message for the API about this problem
         return jsonify({"error": f"Failed to retrieve results from database: {str(e_db_query)}"}), 500
 
-    current_app.logger.info(f"API execute_search completed for Query: '{search_query}'. Returning {len(database_results_for_api)} platform results.")
-    return jsonify({"results": database_results_for_api})
+    current_app.logger.info(f"API execute_search completed for Query: '{search_query}'. Returning result for Facebook.")
+    return jsonify(database_results_for_api[0] if database_results_for_api else {})
 
 @app.route('/history')
 def search_history():

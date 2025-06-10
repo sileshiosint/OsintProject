@@ -26,8 +26,8 @@
     <script>
         const searchQuery = "{{ search_query }}";
         const searchType = "{{ search_type }}";
-        const platforms = {{ platforms | tojson }};
-        let fetchedResults = [];
+        // Platforms variable is no longer needed from template, but fetch still needs it.
+        let fetchedResults = []; // Used for export
 
         async function fetchResults() {
             const response = await fetch("/api/execute_search", {
@@ -36,132 +36,127 @@
                 body: JSON.stringify({
                     search_query: searchQuery,
                     search_type: searchType,
-                    platforms: platforms
+                    platforms: ["Facebook"] // Hardcode to Facebook as per new logic
                 })
             });
 
-            const data = await response.json();
+            const data = await response.json(); // API now returns a single result object
             const resultsDiv = document.getElementById("results");
             resultsDiv.innerHTML = ""; // Clear loading message
 
-            if (data.error) {
-                resultsDiv.innerHTML = `<p class="error">Error fetching results: ${data.error}</p>`;
+            // API error (e.g., 500 from server, or if scraper itself had a major crash not caught by run_scraper)
+            // data.error is set by search_routes.py if an exception occurs there.
+            // data.status === "error" can also be set by the scraper if it catches an error.
+            if (!response.ok || (data && data.status === "error" && !data.results)) { // Check response.ok for network/HTTP errors
+                let errorMsg = "Error fetching results.";
+                if (data && data.error) { // Error from Flask jsonify
+                    errorMsg = `Error: ${data.error}`;
+                } else if (data && data.status_detail) { // Error from scraper
+                     errorMsg = `Error: ${data.status_detail}`;
+                }
+                resultsDiv.innerHTML = `<p class="error">${errorMsg}</p>`;
                 return;
             }
 
-            if (data.results && data.results.length > 0) {
-                fetchedResults = data.results; // Store for export
-                data.results.forEach(platformResult => {
-                    const platformCard = document.createElement("div");
-                    platformCard.classList.add("result-card");
+            // data is now the single platform result object (for Facebook)
+            if (data && data.platform) { // Check if data is a valid platform result
+                fetchedResults = [data]; // Store for export as a list with one item
 
-                    let contentHtml = `<h3>Platform: ${platformResult.platform}</h3>`;
-                    contentHtml += `<p>Status: ${platformResult.status}</p>`;
-                    if (platformResult.timestamp) {
-                        contentHtml += `<p>Last Scraped: ${new Date(platformResult.timestamp).toLocaleString()}</p>`;
-                    }
+                const platformCard = document.createElement("div");
+                platformCard.classList.add("result-card");
 
-                    if (platformResult.status === "success" && platformResult.data && platformResult.data.length > 0) {
-                        contentHtml += `<h4>Items:</h4><ul>`;
-                        platformResult.data.forEach(item => {
-                            contentHtml += `<li>`;
-                            let itemDetails = '';
-                            if (item.author_display_name && item.author_screen_name) { // Twitter specific
-                                itemDetails += `<strong>Author:</strong> ${item.author_display_name} (${item.author_screen_name})<br>`;
-                            } else if (item.author_name) { // Facebook specific
-                                itemDetails += `<strong>Author:</strong> ${item.author_name}`;
-                                if (item.author_url) {
-                                    itemDetails += ` (<a href="${item.author_url}" target="_blank">Profile</a>)<br>`;
+                let contentHtml = `<h3>Platform: Facebook</h3>`; // Hardcode or use data.platform
+                contentHtml += `<p>Status: ${data.status}</p>`;
+                if (data.status_detail) {
+                    contentHtml += `<p>Details: ${escapeHtml(data.status_detail)}</p>`;
+                }
+                // timestamp is not directly in the new API response at the top level,
+                // it's part of individual items if present.
+                // If a general timestamp for the scrape is needed, it should be added to the API response.
+
+                if (data.status === "success" && data.results && data.results.length > 0) {
+                    contentHtml += `<h4>Items:</h4><ul>`;
+                    data.results.forEach(item => { // data.results is the list of items for Facebook
+                        contentHtml += `<li>`;
+                        let itemDetails = '';
+                        // Simplify for Facebook - primarily uses author_name, text, post_url, media_urls
+                        if (item.author_name) {
+                            itemDetails += `<strong>Author:</strong> ${item.author_name}`;
+                            if (item.author_url) {
+                                itemDetails += ` (<a href="${item.author_url}" target="_blank">Profile</a>)<br>`;
+                            } else {
+                                itemDetails += `<br>`;
+                            }
+                        }
+                        if (item.text) {
+                            itemDetails += `<strong>Text:</strong> ${escapeHtml(item.text)}<br>`;
+                        }
+                        if (item.timestamp) { // Item specific timestamp
+                            itemDetails += `<strong>Time:</strong> ${new Date(item.timestamp * 1000).toLocaleString()}<br>`; // Assuming FB timestamp is Unix
+                        }
+                        if (item.post_url) {
+                            itemDetails += `<strong>Link:</strong> <a href="${item.post_url}" target="_blank">${item.post_url}</a><br>`;
+                        }
+                        if (item.media_urls && item.media_urls.length > 0) {
+                            itemDetails += `<strong>Media:</strong><ul>`;
+                            item.media_urls.forEach(mediaUrl => {
+                                // Facebook scraper might return different media types, adjust as needed
+                                if (typeof mediaUrl === 'string' && mediaUrl.toLowerCase().startsWith("video content present")) {
+                                    itemDetails += `<li>${mediaUrl}</li>`;
+                                } else if (typeof mediaUrl === 'string') { // Assuming URL strings for images
+                                    itemDetails += `<li><a href="${mediaUrl}" target="_blank"><img src="${mediaUrl}" style="max-width:100px; max-height:100px; margin:5px;" alt="media"></a></li>`;
                                 } else {
-                                    itemDetails += `<br>`;
+                                    itemDetails += `<li>Media data (non-URL): ${escapeHtml(JSON.stringify(mediaUrl))}</li>`;
                                 }
-                            } else if (item.author) {
-                                itemDetails += `<strong>Author:</strong> ${item.author}<br>`;
-                            } else if (item.sender_chat_name) { // Telegram specific
-                                itemDetails += `<strong>Chat/Sender:</strong> ${item.sender_chat_name}<br>`;
-                            }
-
-                            if (item.text) { // Common for Twitter, Facebook
-                                itemDetails += `<strong>Text:</strong> ${escapeHtml(item.text)}<br>`;
-                            } else if (item.text_snippet) { // Telegram
-                                itemDetails += `<strong>Snippet:</strong> ${escapeHtml(item.text_snippet)}<br>`;
-                            }
-
-                            if (item.timestamp) {
-                                itemDetails += `<strong>Time:</strong> ${new Date(item.timestamp).toLocaleString()}<br>`;
-                            }
-
-                            if (item.url) { // Twitter tweet URL
-                                itemDetails += `<strong>Link:</strong> <a href="${item.url}" target="_blank">${item.url}</a><br>`;
-                            } else if (item.post_url) { // Facebook post URL
-                                itemDetails += `<strong>Link:</strong> <a href="${item.post_url}" target="_blank">${item.post_url}</a><br>`;
-                            } else if (item.link) { // Telegram link
-                                itemDetails += `<strong>Link:</strong> <a href="${item.link}" target="_blank">${item.link}</a><br>`;
-                            }
-
-                            if (item.media_urls && item.media_urls.length > 0) {
-                                itemDetails += `<strong>Media:</strong><ul>`;
-                                item.media_urls.forEach(mediaUrl => {
-                                    if (mediaUrl.toLowerCase().startsWith("video content present")) {
-                                        itemDetails += `<li>${mediaUrl}</li>`;
-                                    } else {
-                                        itemDetails += `<li><a href="${mediaUrl}" target="_blank"><img src="${mediaUrl}" style="max-width:100px; max-height:100px; margin:5px;" alt="media"></a></li>`;
-                                    }
-                                });
-                                itemDetails += `</ul>`;
-                            }
-
-                            if (itemDetails === '') itemDetails = 'No details extracted for this item.';
-                            contentHtml += itemDetails + `</li><hr>`;
-                        });
-                        contentHtml += `</ul>`;
-                    } else if (platformResult.status === "error" && platformResult.error_details) {
-                        contentHtml += `<p class="error">Error: ${platformResult.error_details}</p>`;
-                         if (platformResult.data && platformResult.data.error_message) { // From scraper.py error saving
-                            contentHtml += `<p class="error">Details: ${platformResult.data.error_message}</p>`;
+                            });
+                            itemDetails += `</ul>`;
                         }
-                    } else if (platformResult.status === "no_results_found") {
-                        contentHtml += `<p>No results found for this platform.</p>`;
-                        if (platformResult.data && platformResult.data.notes) { // Corrected variable name
-                             contentHtml += `<p>Notes: ${platformResult.data.notes}</p>`;
-                        }
-                    } else {
-                         contentHtml += `<p>No data available or an issue occurred (Status: ${platformResult.status}).</p>`;
+                        // Add other Facebook specific fields if necessary
+                        if (item.likes) itemDetails += `<strong>Likes:</strong> ${item.likes}<br>`;
+                        if (item.comments) itemDetails += `<strong>Comments:</strong> ${item.comments}<br>`;
+                        if (item.shares) itemDetails += `<strong>Shares:</strong> ${item.shares}<br>`;
+
+
+                        if (itemDetails === '') itemDetails = 'No details extracted for this item.';
+                        contentHtml += itemDetails + `</li><hr>`;
+                    });
+                    contentHtml += `</ul>`;
+                } else if (data.status === "error") { // Scraper itself reported an error
+                    contentHtml += `<p class="error">Scraping Error: ${data.status_detail || data.error || 'Unknown error'}</p>`;
+                } else if (data.status === "no_results_found" || (data.results && data.results.length === 0)) {
+                    contentHtml += `<p>No results found for Facebook.</p>`;
+                    if (data.notes) {
+                         contentHtml += `<p>Notes: ${escapeHtml(data.notes)}</p>`;
                     }
+                } else if (data.status === "login_required"){
+                    contentHtml += `<p class="error">Login Required: ${data.status_detail || 'Please log in to Facebook and try again.'}</p>`;
+                }
+                 else {
+                     contentHtml += `<p>No data available or an issue occurred (Status: ${data.status}).</p>`;
+                     if (data.status_detail) contentHtml += `<p>Details: ${escapeHtml(data.status_detail)}</p>`;
+                }
 
-                    if (platformResult.screenshot_path) {
-                        // Assuming screenshots are served from a '/screenshots/' route or directly accessible if in static
-                        // For simplicity, let's assume they are in static/screenshots for now if that's where they are saved.
-                        // The path returned by scraper might be absolute or relative to app root.
-                        // For display, it needs to be a URL path.
-                        let webPath = platformResult.screenshot_path;
-                        if (webPath.startsWith('debug_') || webPath.includes('/')) { // If it's a path like debug_twitter... or has slashes
-                             // This might need adjustment based on how screenshots are served by Flask
-                             // If they are saved in static/screenshots, then:
-                             // webPath = `/static/screenshots/${webPath.split('/').pop()}`;
-                             // For now, just display the path as a link if it's not obviously a URL
-                             if (!webPath.startsWith('http') && !webPath.startsWith('/static/')) {
-                                 webPath = `/static/screenshots/${webPath.split(/[\\/]/).pop()}`; // Try to make it a static path
-                             }
-                        }
-                        contentHtml += `<p><a href="${webPath}" target="_blank">View Screenshot</a> (Path: ${platformResult.screenshot_path})</p>`;
+                if (data.screenshot) { // screenshot field from scraper
+                    let webPath = data.screenshot;
+                     // Ensure it's a usable web path
+                    if (webPath && !webPath.startsWith('http') && !webPath.startsWith('/static/')) {
+                        webPath = `/static/screenshots/${webPath.split(/[\\/]/).pop()}`;
                     }
+                    contentHtml += `<p><a href="${webPath}" target="_blank">View Screenshot</a></p>`;
+                }
 
-                    // HTML preview (from original scraper output, not DB)
-                    // This part might be removed if html_preview_available is not consistently useful or too large
-                    if (platformResult.html_preview_available) {
-                         // contentHtml += `<div class="html-preview"><strong>HTML Preview:</strong> Available (content too large to display here by default)</div>`;
-                         // For now, let's not display the full HTML here as it was in the old version.
-                         // It was part of the 'result' object directly, now it's from 'original_scraper_output_for_platform'
-                         // which we decided to merge into api_platform_result.
-                    }
+                if (data.html) { // html field from scraper (raw HTML content)
+                    // contentHtml += `<div class="html-preview"><strong>Raw HTML:</strong> Available (link to view or download if needed)</div>`;
+                    // Avoid displaying raw HTML directly for security and space.
+                    // If a preview or download is needed, a separate endpoint might be better.
+                }
 
+                platformCard.innerHTML = contentHtml;
+                resultsDiv.appendChild(platformCard);
 
-                    platformCard.innerHTML = contentHtml;
-                    resultsDiv.appendChild(platformCard);
-                });
             } else {
-                resultsDiv.innerHTML = "<p>No results found or an error occurred.</p>";
+                resultsDiv.innerHTML = "<p>No results found or an unexpected error occurred.</p>";
+                 if(data && data.error) resultsDiv.innerHTML += `<p class="error">Details: ${data.error}</p>`;
             }
         }
 
