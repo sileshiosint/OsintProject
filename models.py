@@ -13,7 +13,7 @@ class SearchResult(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     search_type = db.Column(db.String(20), nullable=False)  # 'username' or 'keyword'
     search_query = db.Column(db.String(255), nullable=False)
-    platform = db.Column(db.String(50), nullable=False)
+    platform = db.Column(db.String(50), nullable=False, default='Facebook')
     result_data = db.Column(db.Text)  # JSON string of scraped data
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
     status = db.Column(db.String(20), default='success')  # success, error, not_found
@@ -34,7 +34,7 @@ class SearchResult(db.Model):
 class ScrapingSession(db.Model):
     """Model to track scraping sessions and rate limiting"""
     id = db.Column(db.Integer, primary_key=True)
-    platform = db.Column(db.String(50), nullable=False)
+    platform = db.Column(db.String(50), nullable=False, default='Facebook')
     last_request = db.Column(db.DateTime, default=datetime.utcnow)
     request_count = db.Column(db.Integer, default=0)
     session_start = db.Column(db.DateTime, default=datetime.utcnow)

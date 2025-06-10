@@ -1,13 +1,9 @@
 
 import asyncio
 import os
-from scrapers.twitter_scraper import scrape_twitter
 from scrapers.facebook_scraper import scrape_facebook
-from scrapers.telegram_scraper import scrape_telegram
 
 PLATFORM_SCRAPERS = {
-    "Telegram": scrape_telegram,
-    "Twitter": scrape_twitter,
     "Facebook": scrape_facebook,
 }
 

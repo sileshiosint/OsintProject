@@ -1,6 +1,6 @@
-# OSINT Social Media Search Tool
+# Facebook OSINT Search Tool
 
-A web-based tool for performing searches across multiple social media platforms using browser automation.
+A web-based tool for performing OSINT searches on Facebook using browser automation.
 
 ## Prerequisites
 
@@ -56,10 +56,8 @@ This tool uses Playwright with a persistent browser context to interact with soc
 
 2.  **Log In to Platforms within the Chosen Profile:**
     - Using the **chosen Chrome profile** (either your existing one or the new one you created), navigate to and log in to:
-        - Twitter: [https://twitter.com](https://twitter.com)
         - Facebook: [https://www.facebook.com](https://www.facebook.com)
-        - Telegram Web: [https://web.telegram.org/k/](https://web.telegram.org/k/) (or the `/a/` version if you prefer)
-    - Ensure you are fully logged in, can browse these sites normally, and have completed any initial "accept cookies" or "get started" prompts on these platforms within this specific profile.
+    - Ensure you are fully logged in to Facebook, can browse the site normally, and have completed any initial "accept cookies" or "get started" prompts on Facebook within this specific profile.
     - After logging in, close this Chrome profile instance.
 
 3.  **Find Your Chrome Profile Path:**
@@ -168,17 +166,16 @@ Beyond `CHROME_USER_DATA_DIR` and `HEADLESS_MODE`, the following environment var
 
 ## Basic Usage
 
-- Use the search bar on the homepage to enter your query.
+- Use the search bar on the homepage to enter your query for Facebook.
 - Select the type of search (e.g., "posts", "recent", "top" - actual behavior is platform-specific).
-- Choose the platforms you want to search on.
 - Click "Search". Results will be displayed on the results page and saved to the database.
 
 ## Troubleshooting
 - **No data or "login required" errors / Scrapers don't seem to be logged in:**
-    - **Crucial:** Double-check that `CHROME_USER_DATA_DIR` is set correctly and points to the *exact* Chrome profile directory where you manually logged into the social media platforms.
-    - Ensure you are fully logged in on all target platforms within that specific Chrome profile. Open Chrome with that profile and verify.
+    - **Crucial:** Double-check that `CHROME_USER_DATA_DIR` is set correctly and points to the *exact* Chrome profile directory where you manually logged into Facebook.
+    - Ensure you are fully logged in on Facebook within that specific Chrome profile. Open Chrome with that profile and verify.
     - **Run with `HEADLESS_MODE = False`** (by editing `scrapers/config.py` or setting the environment variable). This will open visible browser windows, allowing you to see if CAPTCHAs, cookie banners, special login prompts, or other unexpected pages are appearing and blocking the scrapers. You might need to solve these manually in the browser window opened by Playwright initially.
-    - Some platforms (especially Facebook and Twitter) are very sensitive to automation and may present challenges even with a logged-in profile. UI changes also occur frequently, which can break selectors.
+    - Facebook is very sensitive to automation and may present challenges even with a logged-in profile. UI changes also occur frequently, which can break selectors.
 - **Database errors:** Ensure your PostgreSQL server is running and accessible with the credentials configured in `app.py` (or your Flask app's configuration). Make sure you've run `db.create_all()`.
 - **`ModuleNotFoundError`:** Ensure all dependencies from `requirements.txt` are installed in your active virtual environment.
 ```
